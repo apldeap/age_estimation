@@ -6,15 +6,22 @@ require 'nn'
 require 'qtwidget'
 require 'sys'
 
+NETWORKS_PATH = '/home/bruno/lua/age_estimation/networks'
+MODEL_FILE_NAME = 'network-gsanmeotkgnhqvkitxwg.net'
+TEST_FILE_PATH = 'test_images_paths.txt'
+TEST_IMAGES_PATH = '/home/bruno/lua/age_estimation/test data'
+
 args = lapp[[
    -r,--resultsDir      (default results)       	directory with training results
    -t,--testSet			(default test_set.txt)  	txt file containing image paths
    -m,--modelName		(default model.net)			torch model
 ]]
 
+PARAM_Z = 10.0
+
 function get_lines(file)
   lines = {}
-  for line in io.lines(file) do 
+  for line in io.lines(file) do
     lines[#lines + 1] = line
   end
   return lines
@@ -25,40 +32,38 @@ function round(num, numDecimalPlaces)
   return math.floor(num * mult + 0.5) / mult
 end
 
-wind = qtwidget.newwindow(180, 120)
+--wind = qtwidget.newwindow(180, 120)
+wind = qtwidget.newwindow(128, 128)
 
-print(sys.COLORS.green .. 'Testing model ' .. args.modelName .. ':\n') 
+--model = torch.load(NETWORKS_PATH .. '/' .. MODEL_FILE_NAME):float()	-- float?
+model = nn.Sequential()
+model:add(nn.SpatialConvolutionMM(1, 16, 15, 15, 1, 1, 7, 7))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(4, 4, 2, 2, 2, 2))
+model:add(nn.Reshape(16*65*65))
+model:add(nn.Linear(16*65*65, 1))
 
-net = torch.load(args.resultsDir .. '/' .. args.modelName):float()
+print(model)
 torch.setnumthreads(1)
 
-imgpaths = get_lines(args.testSet)
+--input = torch.Tensor(1, 128, 128)
+
+imgpaths = get_lines(TEST_IMAGES_PATH .. '/' .. TEST_FILE_PATH)
 for i, p in ipairs(imgpaths) do
 
-	img = image.load(p):float()
-	h = img:size()[2]
-	w = img:size()[3]
-	z = 10.0
+	local img = image.load(TEST_IMAGES_PATH .. '/' .. p, 1, 'double')
+	local h = img:size()[2]
+	local w = img:size()[3]
 
-	print (img:size())
-	print (net)
+--	print(img:size())
 
 	local time = sys.clock()
-	output = net:forward(img)
+	local output = model:forward(img)
 	time = sys.clock() - time
 
-	print('x: ' .. output[1] .. ', y: ' .. output[2] .. ', ms: ' .. time * 1000.0)
+--	print(output)
+	print('age: ' .. output[1] .. ', ms: ' .. time * 1000.0)
 
-	bigImg = image.scale(img, w * z, h * z) 
-
-	bigColorImg = torch.Tensor(3, h * z, w * z)
-	bigColorImg[1] = bigImg
-	bigColorImg[2] = bigImg
-	bigColorImg[3] = bigImg
-
-	x = (output[1] * w * z)
-	y = (output[2] * h * z)
-	resultImg = image.drawRect(bigColorImg, x, y, x, y, {lineWidth = 3, color = {0, 255, 0}})
-	image.display{image=resultImg, win=wind} 
-	sys.sleep(1)
+	image.display{image=img, win=wind} 
+	sys.sleep(3)
 end
